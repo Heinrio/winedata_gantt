@@ -266,6 +266,7 @@ export default function GanttApp() {
   const chartRef = useRef(null);
   const sideRef = useRef(null);
   const fileRef = useRef(null);
+  const scrollingRef = useRef(false);
 
   const { projectStart, projectEnd } = useMemo(() => {
     if (!tasks.length) return { projectStart: new Date(), projectEnd: new Date() };
@@ -546,12 +547,7 @@ export default function GanttApp() {
           TEMA
         </button>
 
-        <button onClick={()=>fileRef.current?.click()}
-          style={{padding:"5px 13px",background:C.wine,color:"#fff",border:"none",borderRadius:6,
-            cursor:"pointer",fontSize:10,fontFamily:"inherit",fontWeight:700,letterSpacing:"0.08em"}}>
-          + XML
-        </button>
-        <input ref={fileRef} type="file" accept=".xml" style={{display:"none"}} onChange={e=>handleFile(e.target.files[0])}/>
+
       </div>
 
       {/* ── Theme Picker Panel ── */}
@@ -661,7 +657,7 @@ export default function GanttApp() {
             <span style={{fontSize:9,color:C.textDim,letterSpacing:"0.12em",textTransform:"uppercase"}}>#&nbsp;&nbsp;Tarea</span>
           </div>
           <div ref={sideRef} style={{flex:1,overflowY:"auto",overflowX:"hidden"}}
-            onScroll={e=>{if(chartRef.current)chartRef.current.scrollTop=e.target.scrollTop;}}>
+            onScroll={e=>{if(!scrollingRef.current){scrollingRef.current=true;if(chartRef.current)chartRef.current.scrollTop=e.target.scrollTop;requestAnimationFrame(()=>{scrollingRef.current=false;});}}}>
             {tasks.map((task,i)=>{
               const isSel=task.uid===selected;
               const indent=(task.outlineLevel-1)*14;
@@ -701,7 +697,7 @@ export default function GanttApp() {
 
         {/* Chart panel */}
         <div ref={chartRef} style={{flex:1,overflow:"auto"}}
-          onScroll={e=>{if(sideRef.current)sideRef.current.scrollTop=e.target.scrollTop;}}
+          onScroll={e=>{if(!scrollingRef.current){scrollingRef.current=true;if(sideRef.current)sideRef.current.scrollTop=e.target.scrollTop;requestAnimationFrame(()=>{scrollingRef.current=false;});}}}
           onWheel={e=>{
             if(!e.ctrlKey&&!e.metaKey) return;
             e.preventDefault();
