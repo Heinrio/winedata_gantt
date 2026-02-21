@@ -7,6 +7,16 @@ const EMBEDDED_TASKS = [{"uid":1,"name":"Definición detallada de Requisitos (Sp
 const EMBEDDED_ASSIGNMENTS = {"1":["EE1","EE2","ES","TE","TP"],"3":["EE1","ES"],"4":["EE1","EE2","ES"],"5":["TP","TP2"],"6":["TE"],"7":["EE1"],"8":["EE2"],"9":["EE1"],"10":["EE2"],"11":["TE"],"12":["EE1"],"13":["EE1","EE2"],"14":["ES"],"15":["ES"],"16":["ES","TP"],"17":["TP2"],"18":["ES"],"19":["TP","TP2"],"20":["TP2"],"21":["TP"],"22":["TP"],"23":["TP"],"24":["EE1","ES"],"25":["EE1","ES","TE"],"27":["ES","TE"],"28":["EE1","EE2","ES","TP"],"29":["EE1","EE2"],"30":["TE"],"31":["TE","P"],"32":["EE1"],"33":["ES","TP"],"34":["EE2","TE"],"36":["TE","EE1"],"37":["EE1","EE2"],"38":["ES","TE"],"39":["EE1","EE2","ES","TE","TP"],"40":["ES","TP"],"41":["EE2"],"42":["EE2"],"43":["EE2","TE","TP2"]};
 
 // Color palette per resource (consistent across themes)
+// Full names editable here — siglas are the keys from MS Project
+const RESOURCE_FULL_NAMES = {
+  "EE1": "EE1 – Ingeniero Electrónico 1",
+  "EE2": "EE2 – Ingeniero Electrónico 2",
+  "ES":  "ES – Ingeniero en Sistemas",
+  "TE":  "TE – Técnico Electrónico",
+  "TP":  "TP – Técnico Programador",
+  "TP2": "TP2 – Técnico Programador 2",
+  "P":   "P – Proveedor/Externo",
+};
 const RESOURCE_COLORS = {
   "EE1": {bg:"#1A4A8A",text:"#7EC8FF",short:"E1"},
   "EE2": {bg:"#1A6B4A",text:"#6BEEAA",short:"E2"},
@@ -17,6 +27,7 @@ const RESOURCE_COLORS = {
   "P":   {bg:"#5B3A1A",text:"#FFAA60",short:"P"},
 };
 function getResColor(name) { return RESOURCE_COLORS[name] || {bg:"#333",text:"#ccc",short:name.slice(0,2)}; }
+function getResFullName(name) { return RESOURCE_FULL_NAMES[name] || name; }
 
 const DAY = 86400000;
 
@@ -251,6 +262,7 @@ export default function GanttApp() {
   const [tooltip, setTooltip] = useState(null);
   const [dragging, setDragging] = useState(false);
   const [showDeps, setShowDeps] = useState(true);
+  const [highlightCritical, setHighlightCritical] = useState(false);
   const chartRef = useRef(null);
   const sideRef = useRef(null);
   const fileRef = useRef(null);
@@ -324,10 +336,13 @@ export default function GanttApp() {
     const color = isHi ? C.depHi : C.dep;
     const x1=xMap[from].x+xMap[from].w, y1=getBarY(fi)+BAR_H/2;
     const x2=xMap[to].x, y2=getBarY(ti)+BAR_H/2;
+    const isCriticalDep = highlightCritical && uidMap[from]?.isCritical && uidMap[to]?.isCritical;
+    const depDimmed = (isDim) || (highlightCritical && !isCriticalDep);
     return (
-      <g key={i} opacity={isDim?0.07:isHi?1:0.5} style={{pointerEvents:"none"}}>
-        <path d={`M${x1},${y1} H${x1+14} V${y2} H${x2}`} fill="none" stroke={color}
-          strokeWidth={isHi?2.5:1.5} markerEnd={`url(#arr${isHi?"H":"L"})`} />
+      <g key={i} opacity={depDimmed?0.06:isCriticalDep?1:isHi?1:0.5} style={{pointerEvents:"none"}}>
+        <path d={`M${x1},${y1} H${x1+14} V${y2} H${x2}`} fill="none"
+          stroke={isCriticalDep?C.critical:color}
+          strokeWidth={isCriticalDep?2.5:isHi?2.5:1.5} markerEnd={`url(#arr${isHi||isCriticalDep?"H":"L"})`} />
       </g>
     );
   }
@@ -337,6 +352,9 @@ export default function GanttApp() {
     const {x,w} = xMap[task.uid];
     const y = getBarY(ri);
     const isSel = task.uid === selected;
+    // Critical highlight mode: dim non-critical, glow critical
+    const isDimmedByCritical = highlightCritical && !task.isCritical;
+    const isGlowingCritical = highlightCritical && task.isCritical;
     let fill = task.isCritical ? C.criticalBg : task.isSummary ? C.summaryBg : C.accentGlow;
     let stroke = task.isCritical ? C.critical : task.isSummary ? C.summary : C.accent;
     if (task.isMilestone) { fill="#2A1A00"; stroke=C.milestone; }
@@ -344,7 +362,7 @@ export default function GanttApp() {
     if (task.isMilestone) {
       const cx=x, cy=y+BAR_H/2, r=9;
       return (
-        <g key={task.uid} style={{cursor:"pointer"}}
+        <g key={task.uid} style={{cursor:"pointer",opacity:isDimmedByCritical?0.15:1,transition:"opacity 0.3s"}}
           onClick={()=>setSelected(task.uid===selected?null:task.uid)}
           onMouseEnter={e=>setTooltip({task,mx:e.clientX,my:e.clientY})}
           onMouseLeave={()=>setTooltip(null)}>
@@ -355,11 +373,12 @@ export default function GanttApp() {
     }
 
     return (
-      <g key={task.uid} style={{cursor:"pointer"}}
+      <g key={task.uid} style={{cursor:"pointer",opacity:isDimmedByCritical?0.15:1,transition:"opacity 0.3s"}}
         onClick={()=>setSelected(task.uid===selected?null:task.uid)}
         onMouseEnter={e=>setTooltip({task,mx:e.clientX,my:e.clientY})}
         onMouseLeave={()=>setTooltip(null)}>
         {isSel&&<rect x={x-3} y={y-3} width={w+6} height={BAR_H+6} rx={7} fill={stroke} opacity={0.15}/>}
+        {isGlowingCritical&&!isSel&&<rect x={x-2} y={y-2} width={w+4} height={BAR_H+4} rx={7} fill="none" stroke={C.critical} strokeWidth={2} opacity={0.7} strokeDasharray="4,2"/>}
         <rect x={x+2} y={y+2} width={w} height={BAR_H} rx={task.isSummary?2:5} fill="#000" opacity={0.35}/>
         <rect x={x} y={y} width={w} height={BAR_H} rx={task.isSummary?2:5} fill={fill} stroke={stroke} strokeWidth={isSel?2:1}/>
         {task.isSummary&&<>
@@ -464,6 +483,17 @@ export default function GanttApp() {
         </div>
 
         <div style={{width:1,height:34,background:C.border}}/>
+
+        {/* Critical path highlight */}
+        <button onClick={()=>setHighlightCritical(h=>!h)} title="Resaltar ruta crítica"
+          style={{padding:"4px 11px",background:highlightCritical?"#3D1515":"transparent",
+            color:highlightCritical?C.critical:C.textMuted,
+            border:`1px solid ${highlightCritical?C.critical:C.border}`,
+            borderRadius:5,cursor:"pointer",fontSize:10,fontFamily:"inherit",
+            boxShadow:highlightCritical?`0 0 10px ${C.critical}55`:undefined,
+            transition:"all 0.2s"}}>
+          ⚠ CRÍTICA
+        </button>
 
         {/* Deps toggle */}
         <button onClick={()=>setShowDeps(!showDeps)}
@@ -577,6 +607,13 @@ export default function GanttApp() {
             <div style={{width:13,height:7,background:color,borderRadius:2,opacity:0.85}}/>{lbl}
           </div>
         ))}
+        {highlightCritical&&(
+          <div style={{display:"flex",alignItems:"center",gap:6,fontSize:10,color:C.critical,
+            background:C.criticalBg,border:`1px solid ${C.critical}55`,borderRadius:4,padding:"2px 10px",
+            animation:"pulse 1.5s ease-in-out infinite",fontWeight:700,letterSpacing:"0.06em"}}>
+            ⚠ RUTA CRÍTICA ACTIVA — {tasks.filter(t=>t.isCritical).length} tareas
+          </div>
+        )}
         {isShifted&&(
           <div style={{display:"flex",alignItems:"center",gap:6,fontSize:10,color:C.wineLight,
             background:`${C.wine}22`,border:`1px solid ${C.wine}44`,borderRadius:4,padding:"2px 10px"}}>
@@ -594,7 +631,7 @@ export default function GanttApp() {
         <div style={{width:1,height:16,background:C.border,margin:"0 4px"}}/>
         {/* Resource legend */}
         {Object.entries(RESOURCE_COLORS).map(([name,rc])=>(
-          <div key={name} title={name} style={{display:"flex",alignItems:"center",gap:4,cursor:"default"}}>
+          <div key={name} title={`${name} — ${getResFullName(name)}`} style={{display:"flex",alignItems:"center",gap:4,cursor:"default"}}>
             <div style={{width:18,height:18,borderRadius:4,background:rc.bg,border:`1px solid ${rc.text}44`,
               display:"flex",alignItems:"center",justifyContent:"center"}}>
               <span style={{fontSize:7,fontWeight:700,color:rc.text,fontFamily:"monospace"}}>{rc.short}</span>
@@ -633,7 +670,8 @@ export default function GanttApp() {
                 <div key={task.uid} onClick={()=>setSelected(task.uid===selected?null:task.uid)}
                   style={{height:ROW_H,display:"flex",alignItems:"center",padding:`0 8px 0 ${10+indent}px`,
                     background:isSel?`${C.accentGlow}99`:isConn?`${C.dep}33`:i%2===0?"transparent":C.rowAlt,
-                    borderLeft:isSel?`3px solid ${C.accent}`:isConn?`3px solid ${C.dep}`:"3px solid transparent",
+                    borderLeft:isSel?`3px solid ${C.accent}`:isConn?`3px solid ${C.dep}`:highlightCritical&&task.isCritical?`3px solid ${C.critical}`:"3px solid transparent",
+                    opacity:highlightCritical&&!task.isCritical?0.3:1,
                     cursor:"pointer",borderBottom:`1px solid ${C.border}22`,transition:"background 0.1s"}}>
                   <span style={{fontSize:9,color:C.textDim,minWidth:22,flexShrink:0}}>{task.wbs}</span>
                   {task.isSummary&&<span style={{fontSize:8,color:C.summary,marginRight:3}}>▶</span>}
@@ -648,8 +686,8 @@ export default function GanttApp() {
                   <div style={{display:"flex",gap:2,marginLeft:4,flexShrink:0}}>
                     {(assignments[String(task.uid)]||[]).slice(0,3).map(r=>{
                       const rc=getResColor(r);
-                      return <span key={r} title={r} style={{fontSize:7,fontWeight:700,padding:"1px 4px",borderRadius:3,
-                        background:rc.bg,color:rc.text,letterSpacing:"0.04em",lineHeight:"14px"}}>{rc.short}</span>;
+                      return <span key={r} title={`${r} — ${getResFullName(r)}`} style={{fontSize:7,fontWeight:700,padding:"1px 4px",borderRadius:3,
+                        background:rc.bg,color:rc.text,letterSpacing:"0.04em",lineHeight:"14px",cursor:"default"}}>{rc.short}</span>;
                     })}
                     {(assignments[String(task.uid)]||[]).length>3&&(
                       <span style={{fontSize:7,color:C.textDim,padding:"1px 2px"}}>+{(assignments[String(task.uid)]||[]).length-3}</span>
@@ -751,7 +789,7 @@ export default function GanttApp() {
                       <span key={r} style={{display:"inline-flex",alignItems:"center",gap:4,
                         padding:"3px 8px",borderRadius:5,background:rc.bg,border:`1px solid ${rc.text}44`}}>
                         <span style={{fontSize:9,fontWeight:700,color:rc.text,fontFamily:"monospace"}}>{rc.short}</span>
-                        <span style={{fontSize:10,color:rc.text,opacity:0.9}}>{r}</span>
+                        <span style={{fontSize:10,color:rc.text,opacity:0.9}}>{getResFullName(r)}</span>
                       </span>
                     );
                   })}
